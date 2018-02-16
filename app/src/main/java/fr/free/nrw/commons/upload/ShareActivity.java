@@ -70,6 +70,8 @@ public  class      ShareActivity
     @Inject ModifierSequenceDao modifierSequenceDao;
     @Inject @Named("default_preferences") SharedPreferences prefs;
     @Inject Permission permission;
+    @Inject FileImageManager imageManager;
+
 
     private String source;
     private String mimeType;
@@ -86,7 +88,6 @@ public  class      ShareActivity
     private String title;
     private String description;
     private Snackbar snackbar;
-    private boolean duplicateCheckPassed = false;
 
     /**
      * Called when user taps the submit button.
@@ -112,7 +113,7 @@ public  class      ShareActivity
     }
 
     private void uploadBegins() {
-        getFileMetadata(permission.getLocationPermitted());
+        imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
 
         Toast startingToast = Toast.makeText(this, R.string.uploading_started, Toast.LENGTH_LONG);
         startingToast.show();
@@ -220,7 +221,7 @@ public  class      ShareActivity
 
         permission.checkStoragePermission(mediaUri, this);
 
-        performPreuploadProcessingOfFile();
+        imageManager.performPreuploadProcessingOfFile(this, mediaUri, cacheController, imageObj);
 
         SingleUploadFragment shareView = (SingleUploadFragment) getSupportFragmentManager().findFragmentByTag("shareView");
         categorizationFragment = (CategorizationFragment) getSupportFragmentManager().findFragmentByTag("categorization");
@@ -240,34 +241,7 @@ public  class      ShareActivity
         permission.updatePermissions(requestCode, grantResults);
     }
 
-    private void performPreuploadProcessingOfFile() {
-        if (!permission.getUseNewPermissions() || permission.getStoragePermitted()) {
-            if (!duplicateCheckPassed) {
-                //Test SHA1 of image to see if it matches SHA1 of a file on Commons
-                try {
-                    InputStream inputStream = getContentResolver().openInputStream(mediaUri);
-                    Timber.d("Input stream created from %s", mediaUri.toString());
-                    String fileSHA1 = getSHA1(inputStream);
-                    Timber.d("File SHA1 is: %s", fileSHA1);
 
-                    ExistingFileAsync fileAsyncTask =
-                            new ExistingFileAsync(fileSHA1, this, result -> {
-                                Timber.d("%s duplicate check: %s", mediaUri.toString(), result);
-                                duplicateCheckPassed = (result == DUPLICATE_PROCEED
-                                        || result == NO_DUPLICATE);
-                            }, mwApi);
-                    fileAsyncTask.execute();
-                } catch (IOException e) {
-                    Timber.d(e, "IO Exception: ");
-                }
-            }
-
-            getFileMetadata(permission.getLocationPermitted());
-        } else {
-            Timber.w("not ready for preprocessing: useNewPermissions=%s storage=%s location=%s",
-                    permission.getUseNewPermissions(), permission.getStoragePermitted(), permission.getLocationPermitted());
-        }
-    }
 
     public Snackbar requestPermissionUsingSnackBar(String rationale,
                                                     final String[] perms,
@@ -277,113 +251,6 @@ public  class      ShareActivity
                 view -> ActivityCompat.requestPermissions(ShareActivity.this, perms, code));
         snackbar.show();
         return snackbar;
-    }
-
-    @Nullable
-    private String getPathOfMediaOrCopy() {
-        String filePath = FileUtils.getPath(getApplicationContext(), mediaUri);
-        Timber.d("Filepath: " + filePath);
-        if (filePath == null) {
-            // in older devices getPath() may fail depending on the source URI
-            // creating and using a copy of the file seems to work instead.
-            // TODO: there might be a more proper solution than this
-            String copyPath = null;
-            try {
-                ParcelFileDescriptor descriptor
-                        = getContentResolver().openFileDescriptor(mediaUri, "r");
-                if (descriptor != null) {
-                    boolean useExtStorage = prefs.getBoolean("useExternalStorage", true);
-                    if (useExtStorage) {
-                        copyPath = Environment.getExternalStorageDirectory().toString()
-                                + "/CommonsApp/" + new Date().getTime() + ".jpg";
-                        File newFile = new File(Environment.getExternalStorageDirectory().toString() + "/CommonsApp");
-                        newFile.mkdir();
-                        FileUtils.copy(
-                                descriptor.getFileDescriptor(),
-                                copyPath);
-                        Timber.d("Filepath (copied): %s", copyPath);
-                        return copyPath;
-                    }
-                    copyPath = getApplicationContext().getCacheDir().getAbsolutePath()
-                            + "/" + new Date().getTime() + ".jpg";
-                    FileUtils.copy(
-                            descriptor.getFileDescriptor(),
-                            copyPath);
-                    Timber.d("Filepath (copied): %s", copyPath);
-                    return copyPath;
-                }
-            } catch (IOException e) {
-                Timber.w(e, "Error in file " + copyPath);
-                return null;
-            }
-        }
-        return filePath;
-    }
-
-    /**
-     * Gets coordinates for category suggestions, either from EXIF data or user location
-     *
-     * @param gpsEnabled if true use GPS
-     */
-    private void getFileMetadata(boolean gpsEnabled) {
-        Timber.d("Calling GPSExtractor");
-        try {
-            if (imageObj == null) {
-                ParcelFileDescriptor descriptor
-                        = getContentResolver().openFileDescriptor(mediaUri, "r");
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    if (descriptor != null) {
-                        imageObj = new GPSExtractor(descriptor.getFileDescriptor(), this, prefs);
-                    }
-                } else {
-                    String filePath = getPathOfMediaOrCopy();
-                    if (filePath != null) {
-                        imageObj = new GPSExtractor(filePath, this, prefs);
-                    }
-                }
-            }
-
-            if (imageObj != null) {
-                // Gets image coords from exif data or user location
-                decimalCoords = imageObj.getCoords(gpsEnabled);
-                useImageCoords();
-            }
-        } catch (FileNotFoundException e) {
-            Timber.w("File not found: " + mediaUri, e);
-        }
-    }
-
-    /**
-     * Initiates retrieval of image coordinates or user coordinates, and caching of coordinates.
-     * Then initiates the calls to MediaWiki API through an instance of MwVolleyApi.
-     */
-    public void useImageCoords() {
-        if (decimalCoords != null) {
-            Timber.d("Decimal coords of image: %s", decimalCoords);
-
-            // Only set cache for this point if image has coords
-            if (imageObj.imageCoordsExists) {
-                double decLongitude = imageObj.getDecLongitude();
-                double decLatitude = imageObj.getDecLatitude();
-                cacheController.setQtPoint(decLongitude, decLatitude);
-            }
-
-            MwVolleyApi apiCall = new MwVolleyApi(this);
-
-            List<String> displayCatList = cacheController.findCategory();
-            boolean catListEmpty = displayCatList.isEmpty();
-
-            // If no categories found in cache, call MediaWiki API to match image coords with nearby Commons categories
-            if (catListEmpty) {
-                cacheFound = false;
-                apiCall.request(decimalCoords);
-                Timber.d("displayCatList size 0, calling MWAPI %s", displayCatList);
-            } else {
-                cacheFound = true;
-                Timber.d("Cache found, setting categoryList in MwVolleyApi to %s", displayCatList);
-                MwVolleyApi.setGpsCat(displayCatList);
-            }
-        }
     }
 
     @Override
@@ -417,54 +284,17 @@ public  class      ShareActivity
         return super.onOptionsItemSelected(item);
     }
 
-    // Get SHA1 of file from input stream
-    private String getSHA1(InputStream is) {
-
-        MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("SHA1");
-        } catch (NoSuchAlgorithmException e) {
-            Timber.e(e, "Exception while getting Digest");
-            return "";
-        }
-
-        byte[] buffer = new byte[8192];
-        int read;
-        try {
-            while ((read = is.read(buffer)) > 0) {
-                digest.update(buffer, 0, read);
-            }
-            byte[] md5sum = digest.digest();
-            BigInteger bigInt = new BigInteger(1, md5sum);
-            String output = bigInt.toString(16);
-            // Fill to 40 chars
-            output = String.format("%40s", output).replace(' ', '0');
-            Timber.i("File SHA1: %s", output);
-
-            return output;
-        } catch (IOException e) {
-            Timber.e(e, "IO Exception");
-            return "";
-        } finally {
-            try {
-                is.close();
-            } catch (IOException e) {
-                Timber.e(e, "Exception on closing MD5 input stream");
-            }
-        }
-    }
-
     public void startPreprocessing(boolean setImageBackground) {
         if(setImageBackground) {
             backgroundImageView.setImageURI(mediaUri);
         }
-        performPreuploadProcessingOfFile();
+        imageManager.performPreuploadProcessingOfFile(this, mediaUri, cacheController, imageObj);
     }
 
     public void startPreprocessingAndUpload() {
         //It is OK to call this at both (1) and (4) because if perm had been granted at
         //snackbar, user should not be prompted at submit button
-        performPreuploadProcessingOfFile();
+        imageManager.performPreuploadProcessingOfFile(this, mediaUri, cacheController, imageObj);
         //Uploading only begins if storage permission granted from arrow icon
         uploadBegins();
         snackbar.dismiss();

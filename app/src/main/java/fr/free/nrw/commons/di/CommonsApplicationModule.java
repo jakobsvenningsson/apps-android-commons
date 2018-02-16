@@ -21,6 +21,7 @@ import fr.free.nrw.commons.location.LocationServiceManager;
 import fr.free.nrw.commons.mwapi.ApacheHttpClientMediaWikiApi;
 import fr.free.nrw.commons.mwapi.MediaWikiApi;
 import fr.free.nrw.commons.nearby.NearbyPlaces;
+import fr.free.nrw.commons.upload.FileImageManager;
 import fr.free.nrw.commons.upload.Permission;
 import fr.free.nrw.commons.upload.UploadController;
 
@@ -142,5 +143,11 @@ public class CommonsApplicationModule {
     @Singleton
     public Permission providePermission() {
         return new Permission();
+    }
+
+    @Provides
+    @Singleton
+    public FileImageManager provideFileImageManager() {
+        return new FileImageManager();
     }
 }
