@@ -4,7 +4,6 @@ import android.Manifest;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -12,14 +11,10 @@ import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.annotation.RequiresApi;
 import android.support.design.widget.Snackbar;
 import android.support.graphics.drawable.VectorDrawableCompat;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.view.MenuItem;
-import android.view.View;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.facebook.drawee.generic.GenericDraweeHierarchyBuilder;
@@ -64,12 +59,8 @@ import static fr.free.nrw.commons.upload.ExistingFileAsync.Result.NO_DUPLICATE;
 public  class      ShareActivity
         extends    AuthenticatedActivity
         implements SingleUploadFragment.OnUploadActionInitiated,
-        OnCategoriesSaveHandler {
+        OnCategoriesSaveHandler, ShareActivityInterface {
 
-    private static final int REQUEST_PERM_ON_CREATE_STORAGE = 1;
-    private static final int REQUEST_PERM_ON_CREATE_LOCATION = 2;
-    private static final int REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION = 3;
-    private static final int REQUEST_PERM_ON_SUBMIT_STORAGE = 4;
     private CategorizationFragment categorizationFragment;
 
     @Inject MediaWikiApi mwApi;
@@ -78,6 +69,7 @@ public  class      ShareActivity
     @Inject UploadController uploadController;
     @Inject ModifierSequenceDao modifierSequenceDao;
     @Inject @Named("default_preferences") SharedPreferences prefs;
+    @Inject Permission permission;
 
     private String source;
     private String mimeType;
@@ -90,10 +82,6 @@ public  class      ShareActivity
 
     private GPSExtractor imageObj;
     private String decimalCoords;
-
-    private boolean useNewPermissions = false;
-    private boolean storagePermitted = false;
-    private boolean locationPermitted = false;
 
     private String title;
     private String description;
@@ -112,9 +100,9 @@ public  class      ShareActivity
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             // Check for Storage permission that is required for upload.
             // Do not allow user to proceed without permission, otherwise will crash
-            if (needsToRequestStoragePermission()) {
+            if (permission.needsToRequestStoragePermission(mediaUri, this)) {
                 requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
-                        REQUEST_PERM_ON_SUBMIT_STORAGE);
+                        permission.REQUEST_PERM_ON_SUBMIT_STORAGE);
             } else {
                 uploadBegins();
             }
@@ -123,18 +111,8 @@ public  class      ShareActivity
         }
     }
 
-    @RequiresApi(16)
-    private boolean needsToRequestStoragePermission() {
-        // We need to ask storage permission when
-        // the file is not owned by this application, (e.g. shared from the Gallery)
-        // and permission is not obtained.
-        return !FileUtils.isSelfOwned(getApplicationContext(), mediaUri)
-                && (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED);
-    }
-
     private void uploadBegins() {
-        getFileMetadata(locationPermitted);
+        getFileMetadata(permission.getLocationPermitted());
 
         Toast startingToast = Toast.makeText(this, R.string.uploading_started, Toast.LENGTH_LONG);
         startingToast.show();
@@ -200,6 +178,7 @@ public  class      ShareActivity
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        permission.setShareActivityInterface(this);
 
         setContentView(R.layout.activity_share);
         ButterKnife.bind(this);
@@ -239,47 +218,9 @@ public  class      ShareActivity
         Timber.d("Uri: %s", mediaUri.toString());
         Timber.d("Ext storage dir: %s", Environment.getExternalStorageDirectory());
 
-        useNewPermissions = false;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            useNewPermissions = true;
+        permission.checkStoragePermission(mediaUri, this);
 
-            if (!needsToRequestStoragePermission()) {
-                storagePermitted = true;
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                locationPermitted = true;
-            }
-        }
-
-        // Check storage permissions if marshmallow or newer
-        if (useNewPermissions && (!storagePermitted || !locationPermitted)) {
-            if (!storagePermitted && !locationPermitted) {
-                String permissionRationales =
-                        getResources().getString(R.string.read_storage_permission_rationale) + "\n"
-                                + getResources().getString(R.string.location_permission_rationale);
-                snackbar = requestPermissionUsingSnackBar(
-                        permissionRationales,
-                        new String[]{
-                                Manifest.permission.READ_EXTERNAL_STORAGE,
-                                Manifest.permission.ACCESS_FINE_LOCATION},
-                        REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION);
-                View snackbarView = snackbar.getView();
-                TextView textView = (TextView) snackbarView.findViewById(android.support.design.R.id.snackbar_text);
-                textView.setMaxLines(3);
-            } else if (!storagePermitted) {
-                requestPermissionUsingSnackBar(
-                        getString(R.string.read_storage_permission_rationale),
-                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
-                        REQUEST_PERM_ON_CREATE_STORAGE);
-            } else if (!locationPermitted) {
-                requestPermissionUsingSnackBar(
-                        getString(R.string.location_permission_rationale),
-                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                        REQUEST_PERM_ON_CREATE_LOCATION);
-            }
-        }
         performPreuploadProcessingOfFile();
-
 
         SingleUploadFragment shareView = (SingleUploadFragment) getSupportFragmentManager().findFragmentByTag("shareView");
         categorizationFragment = (CategorizationFragment) getSupportFragmentManager().findFragmentByTag("categorization");
@@ -296,58 +237,11 @@ public  class      ShareActivity
     @Override
     public void onRequestPermissionsResult(int requestCode,
                                            @NonNull String[] permissions, @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case REQUEST_PERM_ON_CREATE_STORAGE: {
-                if (grantResults.length >= 1
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    backgroundImageView.setImageURI(mediaUri);
-                    storagePermitted = true;
-                    performPreuploadProcessingOfFile();
-                }
-                return;
-            }
-            case REQUEST_PERM_ON_CREATE_LOCATION: {
-                if (grantResults.length >= 1
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    locationPermitted = true;
-                    performPreuploadProcessingOfFile();
-                }
-                return;
-            }
-            case REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION: {
-                if (grantResults.length >= 2
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    backgroundImageView.setImageURI(mediaUri);
-                    storagePermitted = true;
-                    performPreuploadProcessingOfFile();
-                }
-                if (grantResults.length >= 2
-                        && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
-                    locationPermitted = true;
-                    performPreuploadProcessingOfFile();
-                }
-                return;
-            }
-            // Storage (from submit button) - this needs to be separate from (1) because only the
-            // submit button should bring user to next screen
-            case REQUEST_PERM_ON_SUBMIT_STORAGE: {
-                if (grantResults.length >= 1
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    //It is OK to call this at both (1) and (4) because if perm had been granted at
-                    //snackbar, user should not be prompted at submit button
-                    performPreuploadProcessingOfFile();
-
-                    //Uploading only begins if storage permission granted from arrow icon
-                    uploadBegins();
-                    snackbar.dismiss();
-                }
-                return;
-            }
-        }
+        permission.updatePermissions(requestCode, grantResults);
     }
 
     private void performPreuploadProcessingOfFile() {
-        if (!useNewPermissions || storagePermitted) {
+        if (!permission.getUseNewPermissions() || permission.getStoragePermitted()) {
             if (!duplicateCheckPassed) {
                 //Test SHA1 of image to see if it matches SHA1 of a file on Commons
                 try {
@@ -368,14 +262,14 @@ public  class      ShareActivity
                 }
             }
 
-            getFileMetadata(locationPermitted);
+            getFileMetadata(permission.getLocationPermitted());
         } else {
             Timber.w("not ready for preprocessing: useNewPermissions=%s storage=%s location=%s",
-                    useNewPermissions, storagePermitted, locationPermitted);
+                    permission.getUseNewPermissions(), permission.getStoragePermitted(), permission.getLocationPermitted());
         }
     }
 
-    private Snackbar requestPermissionUsingSnackBar(String rationale,
+    public Snackbar requestPermissionUsingSnackBar(String rationale,
                                                     final String[] perms,
                                                     final int code) {
         Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), rationale,
@@ -558,5 +452,25 @@ public  class      ShareActivity
                 Timber.e(e, "Exception on closing MD5 input stream");
             }
         }
+    }
+
+    public void startPreprocessing(boolean setImageBackground) {
+        if(setImageBackground) {
+            backgroundImageView.setImageURI(mediaUri);
+        }
+        performPreuploadProcessingOfFile();
+    }
+
+    public void startPreprocessingAndUpload() {
+        //It is OK to call this at both (1) and (4) because if perm had been granted at
+        //snackbar, user should not be prompted at submit button
+        performPreuploadProcessingOfFile();
+        //Uploading only begins if storage permission granted from arrow icon
+        uploadBegins();
+        snackbar.dismiss();
+    }
+
+    public void setSnackbar(Snackbar snackbar) {
+        this.snackbar = snackbar;
     }
 }

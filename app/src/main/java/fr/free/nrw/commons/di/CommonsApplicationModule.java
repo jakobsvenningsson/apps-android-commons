@@ -21,6 +21,7 @@ import fr.free.nrw.commons.location.LocationServiceManager;
 import fr.free.nrw.commons.mwapi.ApacheHttpClientMediaWikiApi;
 import fr.free.nrw.commons.mwapi.MediaWikiApi;
 import fr.free.nrw.commons.nearby.NearbyPlaces;
+import fr.free.nrw.commons.upload.Permission;
 import fr.free.nrw.commons.upload.UploadController;
 
 import static android.content.Context.MODE_PRIVATE;
@@ -135,5 +136,11 @@ public class CommonsApplicationModule {
     @Singleton
     public LruCache<String, String> provideLruCache() {
         return new LruCache<>(1024);
+    }
+
+    @Provides
+    @Singleton
+    public Permission providePermission() {
+        return new Permission();
     }
 }
