@@ -41,6 +41,7 @@ public class FileImageManager {
     private ExistingFileAsync fileAsyncTask;
 
     private boolean duplicateCheckPassed = false;
+    public boolean getDuplicateCheckPassed() { return duplicateCheckPassed; }
 
     public FileImageManager(MediaWikiApi mwApi, Permission permission, SharedPreferences prefs) {
         this.permission = permission;
@@ -106,7 +107,7 @@ public class FileImageManager {
             if (imageObj != null) {
                 // Gets image coords from exif data or user location
                 decimalCoords = imageObj.getCoords(gpsEnabled);
-                useImageCoords(decimalCoords, imageObj, cacheController, context);
+                useImageCoords(decimalCoords, imageObj, cacheController, new MwVolleyApi(context));
                 return decimalCoords;
             }
         } catch (FileNotFoundException e) {
@@ -119,7 +120,7 @@ public class FileImageManager {
      * Initiates retrieval of image coordinates or user coordinates, and caching of coordinates.
      * Then initiates the calls to MediaWiki API through an instance of MwVolleyApi.
      */
-    public boolean useImageCoords(String decimalCoords, GPSExtractor imageObj, CacheController cacheController, Context context) {
+    public boolean useImageCoords(String decimalCoords, GPSExtractor imageObj, CacheController cacheController, MwVolleyApi apiCall) {
         boolean cacheFound = false;
         if (decimalCoords != null) {
             Timber.d("Decimal coords of image: %s", decimalCoords);
@@ -130,8 +131,6 @@ public class FileImageManager {
                 double decLatitude = imageObj.getDecLatitude();
                 cacheController.setQtPoint(decLongitude, decLatitude);
             }
-
-            MwVolleyApi apiCall = new MwVolleyApi(context);
 
             List<String> displayCatList = cacheController.findCategory();
             boolean catListEmpty = displayCatList.isEmpty();
