@@ -1,16 +1,22 @@
 package fr.free.nrw.commons.upload;
 
+import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
+import android.support.v4.content.ContextCompat;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Created by jakobsvenningsson on 2018-02-16.
@@ -18,85 +24,146 @@ import static org.mockito.Mockito.verify;
 
 public class PermissionTest {
 
-    public static final int REQUEST_PERM_ON_CREATE_STORAGE = 1;
-    public static final int REQUEST_PERM_ON_CREATE_LOCATION = 2;
-    public static final int REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION = 3;
-    public static final int REQUEST_PERM_ON_SUBMIT_STORAGE = 4;
+    private static final int REQUEST_PERM_ON_CREATE_STORAGE = 1;
+    private static final int REQUEST_PERM_ON_CREATE_LOCATION = 2;
+    private static final int REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION = 3;
+    private static final int REQUEST_PERM_ON_SUBMIT_STORAGE = 4;
 
     private Permission permission;
-    private ShareActivityInterface mockDelegate;
+    @Mock
+    private Permission mockPermission;
+    @Mock
+    private Context mockContext;
+    @Mock
+    private Uri mockUri;
 
     @Before
     public void setUp() {
-        mockDelegate = mock(ShareActivityInterface.class);
         permission = new Permission();
-        permission.setShareActivityInterface(mockDelegate);
+        MockitoAnnotations.initMocks(this);
+        when(mockPermission.checkStoragePermission(mockUri, mockContext)).thenCallRealMethod();
+    }
+
+
+
+    // 5 tests for updateStoragePermissions checking Case1/Case2 fulfilled(or not) and if = true/false
+    @Test
+    public void updateStoragePermissionsShouldReturnTrueWhenCase1IsFulfilledAndIfIsTrue() {
+        int[] grantResults = {PackageManager.PERMISSION_GRANTED};
+        assertTrue(permission.updateStoragePermissions(REQUEST_PERM_ON_CREATE_STORAGE, grantResults));
     }
 
     @Test
-    public void updatePermissionShoudSetStoragePermittedToTrueWhenCalledWithREQUEST_PERM_ON_CREATE_STORAGE() {
-        // Contract: If updatePermission is called with REQUEST_PERM_ON_CREATE_STORAGE
-        // and PERMISSION_GRANTED then the storagePermitted flag shall be set to true and
-        // startPreprocessing shall be called
-        int[] grantResults = {PackageManager.PERMISSION_GRANTED };
-        permission.updatePermissions(REQUEST_PERM_ON_CREATE_STORAGE, grantResults);
-        assertTrue(permission.getStoragePermitted());
-        verify(mockDelegate, times(1)).startPreprocessing(true);
+    public void updateStoragePermissionsShouldReturnFalseWhenCase1IsFulfilledAndIfIsFalse(){
+        int [] grantResults = {PackageManager.PERMISSION_DENIED};
+        assertFalse(permission.updateStoragePermissions(REQUEST_PERM_ON_CREATE_STORAGE, grantResults));
     }
 
     @Test
-    public void updatePermissionShoudNotChangeStateWhenCalledWithEmptyGrandReult() {
-        // Contract: If updatePermission with is called with REQUEST_PERM_ON_CREATE_STORAGE
-        // and  but without PERMISSION_GRANTED then no methods on the ShareActivityInterface
-        // shall be invoked.
+    public void updateStoragePermissionsShouldReturnTrueWhenCase2IsFulfilledAndIfIsTrue(){
+        int[] grantResults = {PackageManager.PERMISSION_GRANTED, PackageManager.PERMISSION_GRANTED};
+        assertTrue(permission.updateStoragePermissions(REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION, grantResults));
+    }
+
+    @Test
+    public void updateStoragePermissionsShouldReturnFalseWhenCase2IsFulfilledAndIfIsFalse(){
+        int[] grantResults = {PackageManager.PERMISSION_DENIED, PackageManager.PERMISSION_GRANTED};
+        assertFalse(permission.updateStoragePermissions(REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION, grantResults));
+    }
+
+    @Test
+    public void updateStoragePermissionShouldReturnFalseWhenNeitherCase1or2IsFulfilled(){
         int[] grantResults = {};
-        permission.updatePermissions(REQUEST_PERM_ON_CREATE_STORAGE, grantResults);
-        verify(mockDelegate, times(0)).startPreprocessing(anyBoolean());
-        verify(mockDelegate, times(0)).setSnackbar(any());
-        verify(mockDelegate, times(0)).startPreprocessingAndUpload();
+        assertFalse(permission.updateStoragePermissions(REQUEST_PERM_ON_CREATE_LOCATION, grantResults));
+    }
+
+
+
+    // 5 tests for updateLocationPermissions checking Case1/Case2 fulfilled(or not) and if = true/false
+    @Test
+    public void updateLocationPermissionsShouldReturnTrueWhenCase1IsFulfilledAndIfIsTrue() {
+        int[] grantResults = {PackageManager.PERMISSION_GRANTED};
+        assertTrue(permission.updateLocationPermissions(REQUEST_PERM_ON_CREATE_LOCATION, grantResults));
     }
 
     @Test
-    public void updatePermissionShoudSetLocationPermittedToTrueWhenCalledWithREQUEST_PERM_ON_CREATE_LOCATION() {
-        // Contract: If updatePermission with is called with REQUEST_PERM_ON_CREATE_LOCATION
-        // and  with PERMISSION_GRANTED then locationPermitted shall be set to true
-        // and startPreprocessing shall be invoked
-        int[] grantResults = {PackageManager.PERMISSION_GRANTED };
-        permission.updatePermissions(REQUEST_PERM_ON_CREATE_LOCATION, grantResults);
-        assertTrue(permission.getLocationPermitted());
-        verify(mockDelegate, times(1)).startPreprocessing(false);
+    public void updateLocationPermissionsShouldReturnFalseWhenCase1IsFulfilledAndIfIsFalse() {
+        int[] grantResults = {PackageManager.PERMISSION_DENIED};
+        assertFalse(permission.updateLocationPermissions(REQUEST_PERM_ON_CREATE_LOCATION, grantResults));
     }
 
     @Test
-    public void updatePermissionShoudSetStoragePermittedToTrueWhenCalledWithREQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION() {
-        // Contract: If updatePermission with is called with REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION
-        // and  with PERMISSION_GRANTED and len(grantResults) > 1 then storagePermitted shall be set to true
-        // and startPreprocessing shall be invoked with a true argument
-        int[] grantResults = {PackageManager.PERMISSION_GRANTED, 2 };
-        permission.updatePermissions(REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION, grantResults);
-        assertTrue(permission.getStoragePermitted());
-        verify(mockDelegate, times(1)).startPreprocessing(true);
+    public void updateLocationPermissionsShouldReturnTrueWhenCase2IsFulfilledAndIfIsTrue() {
+        int[] grantResults = {PackageManager.PERMISSION_DENIED, PackageManager.PERMISSION_GRANTED};
+        assertTrue(permission.updateLocationPermissions(REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION, grantResults));
     }
 
     @Test
-    public void updatePermissionShoudSetLocationPermittedToTrueWhenCalledWithREQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION() {
-        // Contract: If updatePermission with is called with REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION
-        // and  with PERMISSION_GRANTED and len(grantResults) == 1 then locationPermitted shall be set to true
-        // and startPreprocessing shall be invoked with a false argument
-        int[] grantResults = { 2,PackageManager.PERMISSION_GRANTED };
-        permission.updatePermissions(REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION, grantResults);
-        assertTrue(permission.getLocationPermitted());
-        verify(mockDelegate, times(1)).startPreprocessing(false);
+    public void updateLocationPermissionsShouldReturnFalseWhenCase2IsFulfilledAndIfIsFalse() {
+        int[] grantResults = {PackageManager.PERMISSION_GRANTED, PackageManager.PERMISSION_DENIED};
+        assertFalse(permission.updateLocationPermissions(REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION, grantResults));
     }
 
     @Test
-    public void updatePermissionShoudCallPreprocessingAndUploadWhenCalledWithREQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION() {
-        // Contract: If updatePermission with is called with REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION
-        // and  with PERMISSION_GRANTED then startPreprocessingAndUpload shall be invoked.
-        int[] grantResults = {PackageManager.PERMISSION_GRANTED };
-        permission.updatePermissions(REQUEST_PERM_ON_SUBMIT_STORAGE, grantResults);
-        verify(mockDelegate, times(1)).startPreprocessingAndUpload();
+    public void updateLocationPermissionsShouldReturnFalseWhenNeitherCase1or2IsFulfilled() {
+        int[] grantResults = {};
+        assertFalse(permission.updateLocationPermissions(REQUEST_PERM_ON_CREATE_STORAGE, grantResults));
     }
 
-    //TODO Test checkStoragePermission when we will find a way to properly inject android context
+
+
+    // 3 Tests for updateSpecialPermissions() checking Case1 fulfilled(or not) and if = true/false
+    @Test
+    public void updateSpecialPermissionsShouldReturnTrueWhenCase1IsFulfilledAndIfIsTrue(){
+        int[] grantResults={PackageManager.PERMISSION_GRANTED};
+        assertTrue(permission.updateSpecialPermissions(REQUEST_PERM_ON_SUBMIT_STORAGE, grantResults));
+    }
+
+    @Test
+    public void updateSpecialPermissionsShouldReturnFalseWhenCase1IsFulfilledAndIfIsFalse(){
+        int[] grantResults={PackageManager.PERMISSION_DENIED};
+        assertFalse(permission.updateSpecialPermissions(REQUEST_PERM_ON_SUBMIT_STORAGE, grantResults));
+    }
+
+    @Test
+    public void updateSpecialPermissionsShouldReturnFalseWhenCase1IsNotFulfilled(){
+        int[] grantResults = {};
+        assertFalse(permission.updateSpecialPermissions(REQUEST_PERM_ON_CREATE_STORAGE, grantResults));
+    }
+
+
+    @Test
+    public void checkStoragePermissionShouldReturnTrueIfSDKCorrectAndIfIsTrue() throws Exception {
+        setFinalSDK_INT(1);
+        when(mockPermission.needsToRequestStoragePermission(mockUri, mockContext)).thenReturn(true);
+        assertFalse(mockPermission.checkStoragePermission(mockUri, mockContext));
+    }
+
+    @Test
+    public void checkStoragePermissionShouldReturnFalseIfSDKCorrectAndIfIsFalse() throws Exception {
+        setFinalSDK_INT(1);
+        when(mockPermission.needsToRequestStoragePermission(mockUri, mockContext)).thenReturn(false);
+        assertTrue(mockPermission.checkStoragePermission(mockUri, mockContext));
+    }
+
+    @Test
+    public void checkStoragePermissionShouldReturnFalseIfSDKLow() throws Exception {
+        setFinalSDK_INT(-1);
+        assertFalse(mockPermission.checkStoragePermission(mockUri, mockContext));
+    }
+
+
+    // Method to change the Build.VERSION.SDK_INT for testing purposes
+    static void setFinalSDK_INT(int value) throws Exception {
+        Field field = Build.VERSION.class.getField("SDK_INT");
+
+        field.setAccessible(true);
+        Field modifiersField = Field.class.getDeclaredField("modifiers");
+
+        modifiersField.setAccessible(true);
+        modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+
+        field.set(null, Build.VERSION_CODES.M + value);
+    }
+
 }
