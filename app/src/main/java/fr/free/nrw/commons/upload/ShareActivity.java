@@ -113,7 +113,7 @@ public  class      ShareActivity
     }
 
     private void uploadBegins() {
-        imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
+        decimalCoords = imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
 
         Toast startingToast = Toast.makeText(this, R.string.uploading_started, Toast.LENGTH_LONG);
         startingToast.show();
