@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.storage.StorageManager;
 import android.support.annotation.RequiresApi;
 import android.support.v4.content.ContextCompat;
 import android.view.View;
@@ -22,11 +23,10 @@ import static com.mapbox.mapboxsdk.Mapbox.getApplicationContext;
 
 public class Permission {
 
+
     public Permission() {}
 
-    private ShareActivityInterface shareActivityInterface;
-
-    private boolean useNewPermissions = false;
+    private boolean useNewPermission = false;
     private boolean storagePermitted = false;
     private boolean locationPermitted = false;
 
@@ -35,8 +35,8 @@ public class Permission {
     public static final int REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION = 3;
     public static final int REQUEST_PERM_ON_SUBMIT_STORAGE = 4;
 
-    public boolean getUseNewPermissions() {
-        return useNewPermissions;
+    public boolean getUseNewPermission() {
+        return useNewPermission;
     }
 
     public boolean getStoragePermitted() {
@@ -45,10 +45,6 @@ public class Permission {
 
     public boolean getLocationPermitted() {
         return locationPermitted;
-    }
-
-    public void setShareActivityInterface(ShareActivityInterface shareActivityInterface) {
-        this.shareActivityInterface = shareActivityInterface;
     }
 
     @RequiresApi(16)
@@ -61,130 +57,79 @@ public class Permission {
                 != PackageManager.PERMISSION_GRANTED);
     }
 
-    public void checkStoragePermission(Uri uri, Context context) {
-        useNewPermissions = false;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            useNewPermissions = true;
 
-            if (!needsToRequestStoragePermission(uri, context)) {
-                storagePermitted = true;
-            }
+    public boolean checkLocationPermission(Uri uri, Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            useNewPermission = true;
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                locationPermitted = true;
+                return true;
             }
         }
-        // Check storage permissions if marshmallow or newer
-        if (!useNewPermissions && (!storagePermitted || !locationPermitted)) {
-            if (!storagePermitted && !locationPermitted) {
-                String permissionRationales =
-                        context.getResources().getString(R.string.read_storage_permission_rationale) + "\n"
-                                + context.getResources().getString(R.string.location_permission_rationale);
-                Snackbar snackbar = shareActivityInterface.requestPermissionUsingSnackBar(
-                        permissionRationales,
-                        new String[]{
-                                Manifest.permission.READ_EXTERNAL_STORAGE,
-                                Manifest.permission.ACCESS_FINE_LOCATION},
-                        REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION);
-                View snackbarView = snackbar.getView();
-                TextView textView = (TextView) snackbarView.findViewById(android.support.design.R.id.snackbar_text);
-                textView.setMaxLines(3);
-                shareActivityInterface.setSnackbar(snackbar);
-            } else if (!storagePermitted) {
-                shareActivityInterface.requestPermissionUsingSnackBar(
-                        context.getString(R.string.read_storage_permission_rationale),
-                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
-                        REQUEST_PERM_ON_CREATE_STORAGE);
-            } else if (!locationPermitted) {
-                shareActivityInterface.requestPermissionUsingSnackBar(
-                        context.getString(R.string.location_permission_rationale),
-                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                        REQUEST_PERM_ON_CREATE_LOCATION);
-            }
-        }
+        return false;
     }
 
-    public void updatePermissions(int requestCode, int[] grantResults) {
+    public boolean checkStoragePermission(Uri uri, Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            useNewPermission = true;
+            if (!needsToRequestStoragePermission(uri, context)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean updateStoragePermissions(int requestCode, int[] grantResults) {
         switch (requestCode) {
             case REQUEST_PERM_ON_CREATE_STORAGE: {
                 if (grantResults.length >= 1
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    storagePermitted = true;
-                    shareActivityInterface.startPreprocessing(true);
+                    return true;
                 }
-                return;
-            }
-            case REQUEST_PERM_ON_CREATE_LOCATION: {
-                if (grantResults.length >= 1
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    locationPermitted = true;
-                    shareActivityInterface.startPreprocessing(false);
-                }
-                return;
             }
             case REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION: {
                 if (grantResults.length >= 2
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    storagePermitted = true;
-                    shareActivityInterface.startPreprocessing(true);
+                    return true;
                 }
+            }
+            default:
+                return false;
+        }
+    }
+
+
+    public boolean updateLocationPermissions(int requestCode, int[] grantResults) {
+        switch (requestCode) {
+            case REQUEST_PERM_ON_CREATE_LOCATION: {
+                if (grantResults.length >= 1
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    return true;
+                }
+            }
+            case REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION: {
                 if (grantResults.length >= 2
                         && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
-                    locationPermitted = true;
-                    shareActivityInterface.startPreprocessing(false);
-
+                    return true;
                 }
-                return;
             }
+            default:
+                return false;
+        }
+    }
+
+
+    public boolean updateSpecialPermissions(int requestCode, int[] grantResults) {
+        switch (requestCode) {
             // Storage (from submit button) - this needs to be separate from (1) because only the
             // submit button should bring user to next screen
             case REQUEST_PERM_ON_SUBMIT_STORAGE: {
                 if (grantResults.length >= 1
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    shareActivityInterface.startPreprocessingAndUpload();
+                    return true;
                 }
-                return;
             }
+            default:
+                return false;
         }
     }
 }
-
-
-     /*
-               useNewPermissions = false;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            useNewPermissions = true;
-
-            if (!needsToRequestStoragePermission()) {
-                storagePermitted = true;
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                locationPermitted = true;
-            }
-        }
-        // Check storage permissions if marshmallow or newer
-        if (useNewPermissions && (!storagePermitted || !locationPermitted)) {
-            if (!storagePermitted && !locationPermitted) {
-                String permissionRationales =
-                        getResources().getString(R.string.read_storage_permission_rationale) + "\n"
-                                + getResources().getString(R.string.location_permission_rationale);
-                snackbar = requestPermissionUsingSnackBar(
-                        permissionRationales,
-                        new String[]{
-                                Manifest.permission.READ_EXTERNAL_STORAGE,
-                                Manifest.permission.ACCESS_FINE_LOCATION},
-                        REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION);
-                View snackbarView = snackbar.getView();
-                TextView textView = (TextView) snackbarView.findViewById(android.support.design.R.id.snackbar_text);
-                textView.setMaxLines(3);
-            } else if (!storagePermitted) {
-                requestPermissionUsingSnackBar(
-                        getString(R.string.read_storage_permission_rationale),
-                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
-                        REQUEST_PERM_ON_CREATE_STORAGE);
-            } else if (!locationPermitted) {
-                requestPermissionUsingSnackBar(
-                        getString(R.string.location_permission_rationale),
-                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                        REQUEST_PERM_ON_CREATE_LOCATION);
-            }
-        }*/

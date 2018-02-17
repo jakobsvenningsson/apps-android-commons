@@ -15,6 +15,8 @@ import android.support.design.widget.Snackbar;
 import android.support.graphics.drawable.VectorDrawableCompat;
 import android.support.v4.app.ActivityCompat;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.facebook.drawee.generic.GenericDraweeHierarchyBuilder;
@@ -51,6 +53,7 @@ import timber.log.Timber;
 
 import static fr.free.nrw.commons.upload.ExistingFileAsync.Result.DUPLICATE_PROCEED;
 import static fr.free.nrw.commons.upload.ExistingFileAsync.Result.NO_DUPLICATE;
+import static fr.free.nrw.commons.upload.Permission.REQUEST_PERM_ON_CREATE_STORAGE;
 
 /**
  * Activity for the title/desc screen after image is selected. Also starts processing image
@@ -59,7 +62,7 @@ import static fr.free.nrw.commons.upload.ExistingFileAsync.Result.NO_DUPLICATE;
 public  class      ShareActivity
         extends    AuthenticatedActivity
         implements SingleUploadFragment.OnUploadActionInitiated,
-        OnCategoriesSaveHandler, ShareActivityInterface {
+        OnCategoriesSaveHandler {
 
     private CategorizationFragment categorizationFragment;
 
@@ -71,7 +74,6 @@ public  class      ShareActivity
     @Inject @Named("default_preferences") SharedPreferences prefs;
     @Inject Permission permission;
     @Inject FileImageManager imageManager;
-
 
     private String source;
     private String mimeType;
@@ -88,6 +90,11 @@ public  class      ShareActivity
     private String title;
     private String description;
     private Snackbar snackbar;
+
+    private boolean useNewStoragePermission = false;
+    private boolean useNewLocationPermission = false;
+    private boolean storagePermitted = false;
+    private boolean locationPermitted = false;
 
     /**
      * Called when user taps the submit button.
@@ -123,6 +130,7 @@ public  class      ShareActivity
             cacheController.cacheCategory();
             Timber.d("Cache the categories found");
         }
+
 
         uploadController.startUpload(title, mediaUri, description, mimeType, source, decimalCoords, c -> {
             ShareActivity.this.contribution = c;
@@ -179,7 +187,7 @@ public  class      ShareActivity
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        permission.setShareActivityInterface(this);
+        //permission.setShareActivityInterface(this);
 
         setContentView(R.layout.activity_share);
         ButterKnife.bind(this);
@@ -219,9 +227,38 @@ public  class      ShareActivity
         Timber.d("Uri: %s", mediaUri.toString());
         Timber.d("Ext storage dir: %s", Environment.getExternalStorageDirectory());
 
-        permission.checkStoragePermission(mediaUri, this);
+        storagePermitted = permission.checkStoragePermission(mediaUri, this);
+        locationPermitted = permission.checkLocationPermission(mediaUri, this);
+        if (permission.getUseNewPermission() && (!storagePermitted || !locationPermitted)) {
+            if (!storagePermitted && !locationPermitted) {
+                String permissionRationales =
+                        getResources().getString(R.string.read_storage_permission_rationale) + "\n"
+                                + getResources().getString(R.string.location_permission_rationale);
+                snackbar = requestPermissionUsingSnackBar(
+                        permissionRationales,
+                        new String[]{
+                                Manifest.permission.READ_EXTERNAL_STORAGE,
+                                Manifest.permission.ACCESS_FINE_LOCATION},
+                        permission.REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION);
+                View snackbarView = snackbar.getView();
+                TextView textView = (TextView) snackbarView.findViewById(android.support.design.R.id.snackbar_text);
+                textView.setMaxLines(3);
+            } else if (!storagePermitted) {
+                requestPermissionUsingSnackBar(
+                        getString(R.string.read_storage_permission_rationale),
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                        REQUEST_PERM_ON_CREATE_STORAGE);
+            } else if (!locationPermitted) {
+                requestPermissionUsingSnackBar(
+                        getString(R.string.location_permission_rationale),
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        permission.REQUEST_PERM_ON_CREATE_LOCATION);
+            }
+        }
 
-        imageManager.performPreuploadProcessingOfFile(this, mediaUri, cacheController, imageObj);
+        if(imageManager.isImageDuplicate(this, mediaUri)){
+            imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
+        }
 
         SingleUploadFragment shareView = (SingleUploadFragment) getSupportFragmentManager().findFragmentByTag("shareView");
         categorizationFragment = (CategorizationFragment) getSupportFragmentManager().findFragmentByTag("categorization");
@@ -238,10 +275,28 @@ public  class      ShareActivity
     @Override
     public void onRequestPermissionsResult(int requestCode,
                                            @NonNull String[] permissions, @NonNull int[] grantResults) {
-        permission.updatePermissions(requestCode, grantResults);
+
+        // If the permission has been requested from pushing the submit button then
+        // we have to handle this case seperatly.
+        boolean specialPermission = permission.updateSpecialPermissions(requestCode, grantResults);
+        locationPermitted = permission.updateLocationPermissions(requestCode, grantResults);
+        storagePermitted = permission.updateStoragePermissions(requestCode, grantResults);
+
+        if(specialPermission) {
+            locationPermitted = storagePermitted;
+            performPreuploadProcessingOfFile();
+            uploadBegins();
+            snackbar.dismiss();
+        } else if(locationPermitted && storagePermitted) {
+            backgroundImageView.setImageURI(mediaUri);
+            performPreuploadProcessingOfFile();
+        } else if(storagePermitted) {
+            backgroundImageView.setImageURI(mediaUri);
+            performPreuploadProcessingOfFile();
+        } else if(locationPermitted) {
+            performPreuploadProcessingOfFile();
+        }
     }
-
-
 
     public Snackbar requestPermissionUsingSnackBar(String rationale,
                                                     final String[] perms,
@@ -251,6 +306,12 @@ public  class      ShareActivity
                 view -> ActivityCompat.requestPermissions(ShareActivity.this, perms, code));
         snackbar.show();
         return snackbar;
+    }
+
+    private void performPreuploadProcessingOfFile() {
+        if(imageManager.isImageDuplicate(this, mediaUri)){
+            imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
+        }
     }
 
     @Override
@@ -282,25 +343,5 @@ public  class      ShareActivity
                 return true;
         }
         return super.onOptionsItemSelected(item);
-    }
-
-    public void startPreprocessing(boolean setImageBackground) {
-        if(setImageBackground) {
-            backgroundImageView.setImageURI(mediaUri);
-        }
-        imageManager.performPreuploadProcessingOfFile(this, mediaUri, cacheController, imageObj);
-    }
-
-    public void startPreprocessingAndUpload() {
-        //It is OK to call this at both (1) and (4) because if perm had been granted at
-        //snackbar, user should not be prompted at submit button
-        imageManager.performPreuploadProcessingOfFile(this, mediaUri, cacheController, imageObj);
-        //Uploading only begins if storage permission granted from arrow icon
-        uploadBegins();
-        snackbar.dismiss();
-    }
-
-    public void setSnackbar(Snackbar snackbar) {
-        this.snackbar = snackbar;
     }
 }

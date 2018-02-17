@@ -32,20 +32,24 @@ import static fr.free.nrw.commons.upload.ExistingFileAsync.Result.NO_DUPLICATE;
  * Class responsible for image processing and handling.
  * Used by {@link ShareActivity} when user uploads images.
  */
-public class FileImageManager implements FileImageManagerInterface {
+public class FileImageManager {
 
-    @Inject
-    Permission permission;
-    @Inject
-    MediaWikiApi mwApi;
-    @Inject @Named("default_preferences")
-    SharedPreferences prefs;
+    private Permission permission;
+    private MediaWikiApi mwApi;
+    private SharedPreferences prefs;
 
+    private ExistingFileAsync fileAsyncTask;
 
     private boolean duplicateCheckPassed = false;
 
-    public void performPreuploadProcessingOfFile(Context context, Uri mediaUri, CacheController cacheController, GPSExtractor imageObj) {
-        if (!permission.getUseNewPermissions() || permission.getStoragePermitted()) {
+    public FileImageManager(MediaWikiApi mwApi, Permission permission, SharedPreferences prefs) {
+        this.permission = permission;
+        this.mwApi = mwApi;
+        this.prefs = prefs;
+    }
+
+    public boolean isImageDuplicate(Context context, Uri mediaUri) {
+        if (!permission.getUseNewPermission() || permission.getStoragePermitted()) {
             if (!duplicateCheckPassed) {
                 //Test SHA1 of image to see if it matches SHA1 of a file on Commons
                 try {
@@ -54,22 +58,24 @@ public class FileImageManager implements FileImageManagerInterface {
                     String fileSHA1 = getSHA1(inputStream);
                     Timber.d("File SHA1 is: %s", fileSHA1);
 
-                    ExistingFileAsync fileAsyncTask =
+                    fileAsyncTask =
                             new ExistingFileAsync(fileSHA1, context, result -> {
                                 Timber.d("%s duplicate check: %s", mediaUri.toString(), result);
                                 duplicateCheckPassed = (result == DUPLICATE_PROCEED
                                         || result == NO_DUPLICATE);
                             }, mwApi);
+
                     fileAsyncTask.execute();
                 } catch (IOException e) {
                     Timber.d(e, "IO Exception: ");
                 }
             }
-            getFileMetadata(permission.getLocationPermitted(), context, mediaUri, imageObj, cacheController);
+            return true;
         } else {
             Timber.w("not ready for preprocessing: useNewPermissions=%s storage=%s location=%s",
-                    permission.getUseNewPermissions(), permission.getStoragePermitted(), permission.getLocationPermitted());
+                    permission.getUseNewPermission(), permission.getStoragePermitted(), permission.getLocationPermitted());
         }
+        return false;
     }
 
     /**

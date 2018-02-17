@@ -147,7 +147,9 @@ public class CommonsApplicationModule {
 
     @Provides
     @Singleton
-    public FileImageManager provideFileImageManager() {
-        return new FileImageManager();
+    public FileImageManager provideFileImageManager(MediaWikiApi mwApi,
+                                                    Permission permission,
+                                                    @Named("default_preferences") SharedPreferences sharedPreferences) {
+        return new FileImageManager(mwApi, permission, sharedPreferences);
     }
 }
