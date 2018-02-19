@@ -118,7 +118,7 @@ public class Permission {
     }
 
 
-    public boolean updateSpecialPermissions(int requestCode, int[] grantResults) {
+    public boolean updatePermissionFromSubmitButton(int requestCode, int[] grantResults) {
         switch (requestCode) {
             // Storage (from submit button) - this needs to be separate from (1) because only the
             // submit button should bring user to next screen

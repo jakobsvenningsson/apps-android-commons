@@ -91,8 +91,6 @@ public  class      ShareActivity
     private String description;
     private Snackbar snackbar;
 
-    private boolean useNewStoragePermission = false;
-    private boolean useNewLocationPermission = false;
     private boolean storagePermitted = false;
     private boolean locationPermitted = false;
 
@@ -111,6 +109,7 @@ public  class      ShareActivity
             if (permission.needsToRequestStoragePermission(mediaUri, this)) {
                 requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
                         permission.REQUEST_PERM_ON_SUBMIT_STORAGE);
+                return;
             } else {
                 uploadBegins();
             }
@@ -130,7 +129,6 @@ public  class      ShareActivity
             cacheController.cacheCategory();
             Timber.d("Cache the categories found");
         }
-
 
         uploadController.startUpload(title, mediaUri, description, mimeType, source, decimalCoords, c -> {
             ShareActivity.this.contribution = c;
@@ -187,7 +185,6 @@ public  class      ShareActivity
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //permission.setShareActivityInterface(this);
 
         setContentView(R.layout.activity_share);
         ButterKnife.bind(this);
@@ -229,32 +226,8 @@ public  class      ShareActivity
 
         storagePermitted = permission.checkStoragePermission(mediaUri, this);
         locationPermitted = permission.checkLocationPermission(mediaUri, this);
-        if (permission.getUseNewPermission() && (!storagePermitted || !locationPermitted)) {
-            if (!storagePermitted && !locationPermitted) {
-                String permissionRationales =
-                        getResources().getString(R.string.read_storage_permission_rationale) + "\n"
-                                + getResources().getString(R.string.location_permission_rationale);
-                snackbar = requestPermissionUsingSnackBar(
-                        permissionRationales,
-                        new String[]{
-                                Manifest.permission.READ_EXTERNAL_STORAGE,
-                                Manifest.permission.ACCESS_FINE_LOCATION},
-                        permission.REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION);
-                View snackbarView = snackbar.getView();
-                TextView textView = (TextView) snackbarView.findViewById(android.support.design.R.id.snackbar_text);
-                textView.setMaxLines(3);
-            } else if (!storagePermitted) {
-                requestPermissionUsingSnackBar(
-                        getString(R.string.read_storage_permission_rationale),
-                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
-                        REQUEST_PERM_ON_CREATE_STORAGE);
-            } else if (!locationPermitted) {
-                requestPermissionUsingSnackBar(
-                        getString(R.string.location_permission_rationale),
-                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                        permission.REQUEST_PERM_ON_CREATE_LOCATION);
-            }
-        }
+
+        askForPermissionsIfNeeded();
 
         if(imageManager.isImageDuplicate(this, mediaUri)){
             imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
@@ -278,11 +251,11 @@ public  class      ShareActivity
 
         // If the permission has been requested from pushing the submit button then
         // we have to handle this case seperatly.
-        boolean specialPermission = permission.updateSpecialPermissions(requestCode, grantResults);
+        boolean permissionFromSubmit = permission.updatePermissionFromSubmitButton(requestCode, grantResults);
         locationPermitted = permission.updateLocationPermissions(requestCode, grantResults);
         storagePermitted = permission.updateStoragePermissions(requestCode, grantResults);
 
-        if(specialPermission) {
+        if(permissionFromSubmit) {
             locationPermitted = storagePermitted;
             performPreuploadProcessingOfFile();
             uploadBegins();
@@ -343,5 +316,35 @@ public  class      ShareActivity
                 return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void askForPermissionsIfNeeded() {
+
+        if (permission.getUseNewPermission() && (!storagePermitted || !locationPermitted)) {
+            if (!storagePermitted && !locationPermitted) {
+                String permissionRationales =
+                        getResources().getString(R.string.read_storage_permission_rationale) + "\n"
+                                + getResources().getString(R.string.location_permission_rationale);
+                snackbar = requestPermissionUsingSnackBar(
+                        permissionRationales,
+                        new String[]{
+                                Manifest.permission.READ_EXTERNAL_STORAGE,
+                                Manifest.permission.ACCESS_FINE_LOCATION},
+                        permission.REQUEST_PERM_ON_CREATE_STORAGE_AND_LOCATION);
+                View snackbarView = snackbar.getView();
+                TextView textView = (TextView) snackbarView.findViewById(android.support.design.R.id.snackbar_text);
+                textView.setMaxLines(3);
+            } else if (!storagePermitted) {
+                requestPermissionUsingSnackBar(
+                        getString(R.string.read_storage_permission_rationale),
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                        REQUEST_PERM_ON_CREATE_STORAGE);
+            } else if (!locationPermitted) {
+                requestPermissionUsingSnackBar(
+                        getString(R.string.location_permission_rationale),
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        permission.REQUEST_PERM_ON_CREATE_LOCATION);
+            }
+        }
     }
 }

@@ -112,23 +112,23 @@ public class PermissionTest {
 
 
 
-    // 3 Tests for updateSpecialPermissions() checking Case1 fulfilled(or not) and if = true/false
+    // 3 Tests for updatePermissionFromSubmitButton() checking Case1 fulfilled(or not) and if = true/false
     @Test
-    public void updateSpecialPermissionsShouldReturnTrueWhenCase1IsFulfilledAndIfIsTrue(){
+    public void updatePermissionFromSubmitButtonShouldReturnTrueWhenCase1IsFulfilledAndIfIsTrue(){
         int[] grantResults={PackageManager.PERMISSION_GRANTED};
-        assertTrue(permission.updateSpecialPermissions(REQUEST_PERM_ON_SUBMIT_STORAGE, grantResults));
+        assertTrue(permission.updatePermissionFromSubmitButton(REQUEST_PERM_ON_SUBMIT_STORAGE, grantResults));
     }
 
     @Test
-    public void updateSpecialPermissionsShouldReturnFalseWhenCase1IsFulfilledAndIfIsFalse(){
+    public void updatePermissionFromSubmitButtonShouldReturnFalseWhenCase1IsFulfilledAndIfIsFalse(){
         int[] grantResults={PackageManager.PERMISSION_DENIED};
-        assertFalse(permission.updateSpecialPermissions(REQUEST_PERM_ON_SUBMIT_STORAGE, grantResults));
+        assertFalse(permission.updatePermissionFromSubmitButton(REQUEST_PERM_ON_SUBMIT_STORAGE, grantResults));
     }
 
     @Test
-    public void updateSpecialPermissionsShouldReturnFalseWhenCase1IsNotFulfilled(){
+    public void updatePermissionFromSubmitButtonShouldReturnFalseWhenCase1IsNotFulfilled(){
         int[] grantResults = {};
-        assertFalse(permission.updateSpecialPermissions(REQUEST_PERM_ON_CREATE_STORAGE, grantResults));
+        assertFalse(permission.updatePermissionFromSubmitButton(REQUEST_PERM_ON_CREATE_STORAGE, grantResults));
     }
 
 
