@@ -1,6 +1,7 @@
 package fr.free.nrw.commons.upload;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -131,5 +132,11 @@ public class Permission {
             default:
                 return false;
         }
+    }
+
+    @RequiresApi(23)
+    public void requestPermission(Activity activity) {
+        activity.requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                REQUEST_PERM_ON_SUBMIT_STORAGE);
     }
 }

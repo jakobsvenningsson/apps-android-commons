@@ -11,6 +11,7 @@ import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
 import android.support.design.widget.Snackbar;
 import android.support.graphics.drawable.VectorDrawableCompat;
 import android.support.v4.app.ActivityCompat;
@@ -107,14 +108,11 @@ public  class      ShareActivity
             // Check for Storage permission that is required for upload.
             // Do not allow user to proceed without permission, otherwise will crash
             if (permission.needsToRequestStoragePermission(mediaUri, this)) {
-                requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
-                        permission.REQUEST_PERM_ON_SUBMIT_STORAGE);
-            } else {
-                uploadBegins();
+                permission.requestPermission(this);
+                return;
             }
-        } else {
-            uploadBegins();
         }
+        uploadBegins();
     }
 
     private void uploadBegins() {
