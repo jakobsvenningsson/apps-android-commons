@@ -109,7 +109,6 @@ public  class      ShareActivity
             if (permission.needsToRequestStoragePermission(mediaUri, this)) {
                 requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
                         permission.REQUEST_PERM_ON_SUBMIT_STORAGE);
-                return;
             } else {
                 uploadBegins();
             }
@@ -229,9 +228,7 @@ public  class      ShareActivity
 
         askForPermissionsIfNeeded();
 
-        if(imageManager.isImageDuplicate(this, mediaUri)){
-            imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
-        }
+        performPreuploadProcessingOfFile();
 
         SingleUploadFragment shareView = (SingleUploadFragment) getSupportFragmentManager().findFragmentByTag("shareView");
         categorizationFragment = (CategorizationFragment) getSupportFragmentManager().findFragmentByTag("categorization");
@@ -283,7 +280,10 @@ public  class      ShareActivity
 
     private void performPreuploadProcessingOfFile() {
         if(imageManager.isImageDuplicate(this, mediaUri)){
-            imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
+            decimalCoords = imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
+            if(decimalCoords != null) {
+                cacheFound = imageManager.useImageCoords(decimalCoords, imageObj, cacheController, new MwVolleyApi(this));
+            }
         }
     }
 

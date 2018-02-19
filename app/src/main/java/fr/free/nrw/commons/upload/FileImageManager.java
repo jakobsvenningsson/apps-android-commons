@@ -107,7 +107,6 @@ public class FileImageManager {
             if (imageObj != null) {
                 // Gets image coords from exif data or user location
                 decimalCoords = imageObj.getCoords(gpsEnabled);
-                useImageCoords(decimalCoords, imageObj, cacheController, new MwVolleyApi(context));
                 return decimalCoords;
             }
         } catch (FileNotFoundException e) {
