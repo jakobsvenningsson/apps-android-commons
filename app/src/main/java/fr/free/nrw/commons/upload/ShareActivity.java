@@ -63,6 +63,7 @@ public  class      ShareActivity
     @Inject Permission permission;
     @Inject FileImageManager imageManager;
 
+
     private String source;
     private String mimeType;
 
@@ -129,7 +130,6 @@ public  class      ShareActivity
     public void onCategoriesSave(List<String> categories) {
         if (categories.size() > 0) {
             ModifierSequence categoriesSequence = new ModifierSequence(contribution.getContentUri());
-
             categoriesSequence.queueModifier(new CategoryModifier(categories.toArray(new String[]{})));
             categoriesSequence.queueModifier(new TemplateRemoveModifier("Uncategorized"));
             modifierSequenceDao.save(categoriesSequence);
@@ -138,7 +138,6 @@ public  class      ShareActivity
         // FIXME: Make sure that the content provider is up
         // This is the wrong place for it, but bleh - better than not having it turned on by default for people who don't go throughl ogin
         ContentResolver.setSyncAutomatically(sessionManager.getCurrentAccount(), ModificationsContentProvider.MODIFICATIONS_AUTHORITY, true); // Enable sync by default!
-
         finish();
     }
 

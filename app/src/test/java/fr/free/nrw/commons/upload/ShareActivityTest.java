@@ -1,5 +1,6 @@
 package fr.free.nrw.commons.upload;
 
+import android.accounts.Account;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
@@ -16,10 +17,15 @@ import org.robolectric.annotation.Config;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
+import edu.emory.mathcs.backport.java.util.Arrays;
 import fr.free.nrw.commons.BuildConfig;
 import fr.free.nrw.commons.TestCommonsApplication;
+import fr.free.nrw.commons.auth.SessionManager;
 import fr.free.nrw.commons.caching.CacheController;
+import fr.free.nrw.commons.modifications.ModifierSequence;
+import fr.free.nrw.commons.modifications.ModifierSequenceDao;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -42,6 +48,10 @@ public class ShareActivityTest {
     private UploadController uploadController;
     @Mock
     private CacheController cacheController;
+    @Mock
+    private SessionManager sessionManager;
+    @Mock
+    ModifierSequenceDao modifierSequenceDao;
     @InjectMocks
     private ShareActivity shareActivity;
 
@@ -91,6 +101,16 @@ public class ShareActivityTest {
         shareActivity.uploadActionInitiated(title, description);
         verify(uploadController, times(1)).startUpload(eq(title), any(Uri.class), eq(description), anyString(), anyString(),anyString(), any());
         verify(fileImageManager, times(1)).getFileMetadata(anyBoolean(), any(), any(), any(), any());
+    }
+
+    @Test
+    public void onCategoriesSaveTestShouldSaveAnyCategoriesIfCalledWithEmptyCategoryList() throws Exception {
+        ShareActivityTest.setFinalSDK_INT(0);
+        List<String> categories = Arrays.asList(new String[]{});
+        Account account = new Account("name", "type");
+        when(sessionManager.getCurrentAccount()).thenReturn(account);
+        shareActivity.onCategoriesSave(categories);
+        verify(modifierSequenceDao, times(0)).save(any(ModifierSequence.class));
     }
 
     // Method to change the Build.VERSION.SDK_INT for testing purposes
