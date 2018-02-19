@@ -4,7 +4,6 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -18,24 +17,15 @@ import org.robolectric.annotation.Config;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
-import javax.inject.Inject;
-
 import fr.free.nrw.commons.BuildConfig;
 import fr.free.nrw.commons.TestCommonsApplication;
 import fr.free.nrw.commons.caching.CacheController;
-import fr.free.nrw.commons.contributions.Contribution;
-import fr.free.nrw.commons.nearby.NearbyActivity;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyMap;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;

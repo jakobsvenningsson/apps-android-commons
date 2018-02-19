@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
-import android.support.v4.content.ContextCompat;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -18,9 +17,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
-/**
- * Created by jakobsvenningsson on 2018-02-16.
- */
 
 public class PermissionTest {
 

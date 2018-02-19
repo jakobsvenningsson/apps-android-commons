@@ -8,10 +8,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.ParcelFileDescriptor;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.RequiresApi;
 import android.support.design.widget.Snackbar;
 import android.support.graphics.drawable.VectorDrawableCompat;
 import android.support.v4.app.ActivityCompat;
@@ -23,14 +20,6 @@ import android.widget.Toast;
 import com.facebook.drawee.generic.GenericDraweeHierarchyBuilder;
 import com.facebook.drawee.view.SimpleDraweeView;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Date;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -52,8 +41,6 @@ import fr.free.nrw.commons.modifications.TemplateRemoveModifier;
 import fr.free.nrw.commons.mwapi.MediaWikiApi;
 import timber.log.Timber;
 
-import static fr.free.nrw.commons.upload.ExistingFileAsync.Result.DUPLICATE_PROCEED;
-import static fr.free.nrw.commons.upload.ExistingFileAsync.Result.NO_DUPLICATE;
 import static fr.free.nrw.commons.upload.Permission.REQUEST_PERM_ON_CREATE_STORAGE;
 
 /**
@@ -86,14 +73,10 @@ public  class      ShareActivity
     private boolean cacheFound;
 
     private GPSExtractor imageObj;
-    private String decimalCoords;
 
     private String title;
     private String description;
     private Snackbar snackbar;
-
-    private boolean storagePermitted = false;
-    private boolean locationPermitted = false;
 
     /**
      * Called when user taps the submit button.
@@ -116,7 +99,7 @@ public  class      ShareActivity
     }
 
     private void uploadBegins() {
-        decimalCoords = imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
+        String decimalCoords = imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
 
         Toast startingToast = Toast.makeText(this, R.string.uploading_started, Toast.LENGTH_LONG);
         startingToast.show();
@@ -221,8 +204,8 @@ public  class      ShareActivity
         Timber.d("Uri: %s", mediaUri.toString());
         Timber.d("Ext storage dir: %s", Environment.getExternalStorageDirectory());
 
-        storagePermitted = permission.checkStoragePermission(mediaUri, this);
-        locationPermitted = permission.checkLocationPermission(mediaUri, this);
+        permission.checkStoragePermission(mediaUri, this);
+        permission.checkLocationPermission(this);
 
         askForPermissionsIfNeeded();
 
@@ -247,21 +230,20 @@ public  class      ShareActivity
         // If the permission has been requested from pushing the submit button then
         // we have to handle this case seperatly.
         boolean permissionFromSubmit = permission.updatePermissionFromSubmitButton(requestCode, grantResults);
-        locationPermitted = permission.updateLocationPermissions(requestCode, grantResults);
-        storagePermitted = permission.updateStoragePermissions(requestCode, grantResults);
+        permission.updateLocationPermissions(requestCode, grantResults);
+        permission.updateStoragePermissions(requestCode, grantResults);
 
         if(permissionFromSubmit) {
-            locationPermitted = storagePermitted;
             performPreuploadProcessingOfFile();
             uploadBegins();
             snackbar.dismiss();
-        } else if(locationPermitted && storagePermitted) {
+        } else if(permission.getLocationPermitted() && permission.getStoragePermitted()) {
             backgroundImageView.setImageURI(mediaUri);
             performPreuploadProcessingOfFile();
-        } else if(storagePermitted) {
+        } else if(permission.getStoragePermitted()) {
             backgroundImageView.setImageURI(mediaUri);
             performPreuploadProcessingOfFile();
-        } else if(locationPermitted) {
+        } else if(permission.getLocationPermitted()) {
             performPreuploadProcessingOfFile();
         }
     }
@@ -278,7 +260,7 @@ public  class      ShareActivity
 
     private void performPreuploadProcessingOfFile() {
         if(imageManager.isImageDuplicate(this, mediaUri)){
-            decimalCoords = imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
+            String decimalCoords = imageManager.getFileMetadata(permission.getLocationPermitted(), this, mediaUri, imageObj, cacheController);
             if(decimalCoords != null) {
                 cacheFound = imageManager.useImageCoords(decimalCoords, imageObj, cacheController, new MwVolleyApi(this));
             }
@@ -318,8 +300,8 @@ public  class      ShareActivity
 
     private void askForPermissionsIfNeeded() {
 
-        if (permission.getUseNewPermission() && (!storagePermitted || !locationPermitted)) {
-            if (!storagePermitted && !locationPermitted) {
+        if (permission.getUseNewPermission() && (!permission.getStoragePermitted() || !permission.getLocationPermitted())) {
+            if (!permission.getStoragePermitted() && !permission.getLocationPermitted()) {
                 String permissionRationales =
                         getResources().getString(R.string.read_storage_permission_rationale) + "\n"
                                 + getResources().getString(R.string.location_permission_rationale);
@@ -332,12 +314,12 @@ public  class      ShareActivity
                 View snackbarView = snackbar.getView();
                 TextView textView = (TextView) snackbarView.findViewById(android.support.design.R.id.snackbar_text);
                 textView.setMaxLines(3);
-            } else if (!storagePermitted) {
+            } else if (!permission.getStoragePermitted()) {
                 requestPermissionUsingSnackBar(
                         getString(R.string.read_storage_permission_rationale),
                         new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
                         REQUEST_PERM_ON_CREATE_STORAGE);
-            } else if (!locationPermitted) {
+            } else if (!permission.getLocationPermitted()) {
                 requestPermissionUsingSnackBar(
                         getString(R.string.location_permission_rationale),
                         new String[]{Manifest.permission.ACCESS_FINE_LOCATION},

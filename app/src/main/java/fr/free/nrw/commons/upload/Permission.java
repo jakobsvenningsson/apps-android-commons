@@ -6,20 +6,10 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
-import android.os.storage.StorageManager;
 import android.support.annotation.RequiresApi;
 import android.support.v4.content.ContextCompat;
-import android.view.View;
-import android.widget.TextView;
-import android.support.design.widget.Snackbar;
-
-import fr.free.nrw.commons.R;
 
 import static com.mapbox.mapboxsdk.Mapbox.getApplicationContext;
-
-/**
- * Created by jakobsvenningsson on 2018-02-15.
- */
 
 
 public class Permission {
@@ -59,10 +49,11 @@ public class Permission {
     }
 
 
-    public boolean checkLocationPermission(Uri uri, Context context) {
+    public boolean checkLocationPermission(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             useNewPermission = true;
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                locationPermitted = true;
                 return true;
             }
         }
@@ -73,6 +64,7 @@ public class Permission {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             useNewPermission = true;
             if (!needsToRequestStoragePermission(uri, context)) {
+                storagePermitted = true;
                 return true;
             }
         }
@@ -126,6 +118,7 @@ public class Permission {
             case REQUEST_PERM_ON_SUBMIT_STORAGE: {
                 if (grantResults.length >= 1
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    locationPermitted = storagePermitted;
                     return true;
                 }
             }
